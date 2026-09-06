@@ -10,7 +10,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.konechoco.shortcutatlas
       groups:
-        - levelplay
+        - levelplay-ios
       vars:
         BUNDLE_ID: com.konechoco.shortcutatlas
         XCODE_PROJECT: ios/App/App.xcodeproj
@@ -68,7 +68,7 @@ workflows:
     instance_type: linux_x2
     environment:
       groups:
-        - levelplay
+        - levelplay-android
       vars:
         PACKAGE_NAME: com.konechoco.shortcutatlas
         VITE_ADS_TEST_MODE: "false"

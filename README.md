@@ -61,14 +61,24 @@ La pipeline `codemagic.yaml` contiene due workflow:
 - `android-release`: genera un bundle Android release per Play Console.
 
 Nel progetto Codemagic configura l'integrazione Apple Developer Portal con nome
-`Ikonet Solutions` (o cambia il nome in `codemagic.yaml`). Aggiungi anche queste
-variabili ambiente, preferibilmente come secret nel gruppo `levelplay`:
+`Ikonet Solutions` (o cambia il nome in `codemagic.yaml`). iOS e Android hanno
+Game ID e ad unit LevelPlay distinti, quindi servono due gruppi di variabili
+separati:
 
-- `APP_STORE_APPLE_ID`
-- `CERTIFICATE_PRIVATE_KEY`
-- `VITE_LEVELPLAY_APP_KEY`
-- `VITE_LEVELPLAY_BANNER_AD_UNIT_ID`
-- `VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID`
+Gruppo `levelplay-ios` (usato dal workflow `ios-app-store`):
+- `VITE_LEVELPLAY_APP_KEY` (Game ID iOS)
+- `VITE_LEVELPLAY_BANNER_AD_UNIT_ID` (`Banner_iOS`)
+- `VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID` (`Interstitial_iOS`)
+- `VITE_LEVELPLAY_REWARDED_AD_UNIT_ID` (`Rewarded_iOS`)
+- `VITE_PRIVACY_POLICY_URL`
+- `VITE_LEGAL_NOTICE_URL`
+- `APP_STORE_APPLE_ID` (facoltativa)
+
+Gruppo `levelplay-android` (usato dal workflow `android-release`):
+- `VITE_LEVELPLAY_APP_KEY` (Game ID Android)
+- `VITE_LEVELPLAY_BANNER_AD_UNIT_ID` (`Banner_Android`)
+- `VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID` (`Interstitial_Android`)
+- `VITE_LEVELPLAY_REWARDED_AD_UNIT_ID` (`Rewarded_Android`)
 - `VITE_PRIVACY_POLICY_URL`
 - `VITE_LEGAL_NOTICE_URL`
 
