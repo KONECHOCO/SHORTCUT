@@ -127,6 +127,13 @@ export const ui = {
   themeLight: tx('Tema chiaro', 'Light theme', 'Tema claro', 'Thème clair', 'Helles Theme'),
   themeDark: tx('Tema scuro', 'Dark theme', 'Tema oscuro', 'Thème sombre', 'Dunkles Theme'),
   language: tx('Lingua', 'Language', 'Idioma', 'Langue', 'Sprache'),
+  privacyOptions: tx(
+    'Opzioni privacy annunci',
+    'Ad privacy options',
+    'Opciones de privacidad de anuncios',
+    'Options de confidentialité des annonces',
+    'Datenschutzoptionen für Anzeigen',
+  ),
   openDetail: tx('Apri dettaglio', 'Open details', 'Abrir detalle', 'Ouvrir le détail', 'Details öffnen'),
   popular: tx('Più usati', 'Most used', 'Más usados', 'Les plus utilisés', 'Am häufigsten'),
   seeAll: tx('Vedi tutti', 'See all', 'Ver todos', 'Tout voir', 'Alle anzeigen'),

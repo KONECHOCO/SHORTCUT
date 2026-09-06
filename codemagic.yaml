@@ -1,0 +1,93 @@
+workflows:
+  ios-app-store:
+    name: Shortcut Atlas iOS App Store
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Ikonet Solutions
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.konechoco.shortcutatlas
+      groups:
+        - levelplay
+      vars:
+        BUNDLE_ID: com.konechoco.shortcutatlas
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        VITE_ADS_TEST_MODE: "false"
+      node: latest
+      xcode: latest
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/CocoaPods
+        - $CM_BUILD_DIR/node_modules
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync Capacitor iOS project
+        script: npx cap sync ios
+      - name: Patch iOS LevelPlay Swift package
+        script: node scripts/patch-levelplay-ios-spm.mjs
+      - name: Apply iOS signing profiles
+        script: xcode-project use-profiles
+      - name: Increment App Store build number
+        script: |
+          cd "$CM_BUILD_DIR/ios/App"
+          if [ -n "$APP_STORE_APPLE_ID" ]; then
+            LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" || echo 0)
+            agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
+          else
+            agvtool new-version -all "$BUILD_NUMBER"
+          fi
+      - name: Build IPA
+        script: |
+          cd "$CM_BUILD_DIR/ios/App"
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --no-show-build-settings \
+            --disable-xcpretty \
+            --log-stream stdout
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
+
+  android-release:
+    name: Shortcut Atlas Android Release
+    max_build_duration: 120
+    instance_type: linux_x2
+    environment:
+      groups:
+        - levelplay
+      vars:
+        PACKAGE_NAME: com.konechoco.shortcutatlas
+        VITE_ADS_TEST_MODE: "false"
+      node: latest
+    scripts:
+      - name: Set up Android SDK path
+        script: echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync Capacitor Android project
+        script: npx cap sync android
+      - name: Build Android bundle
+        script: |
+          cd android
+          ./gradlew bundleRelease \
+            -PversionCode="$BUILD_NUMBER" \
+            -PversionName="1.0.$BUILD_NUMBER"
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk

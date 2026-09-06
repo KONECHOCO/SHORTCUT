@@ -10,6 +10,7 @@ import { QuizView } from './views/QuizView'
 import { FormulasView } from './views/FormulasView'
 import { TipsView } from './views/TipsView'
 import { ui } from './i18n/ui'
+import { bootstrapAds, showInterstitialAfterNavigation } from './services/ads'
 
 function Shell() {
   const { view, theme, locale, query, label } = useApp()
@@ -19,6 +20,14 @@ function Shell() {
     document.documentElement.lang = locale
     document.title = `${label(ui.appName)} · ${label(ui.tagline)}`
   }, [theme, locale, label])
+
+  useEffect(() => {
+    void bootstrapAds()
+  }, [])
+
+  useEffect(() => {
+    void showInterstitialAfterNavigation()
+  }, [view])
 
   return (
     <div className="shell">

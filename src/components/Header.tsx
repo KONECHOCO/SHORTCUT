@@ -2,6 +2,7 @@ import { localeLabels } from '../i18n/ui'
 import { LOCALES } from '../types'
 import { countLabel, useApp } from '../context/AppContext'
 import { ui } from '../i18n/ui'
+import { showPrivacyOptions } from '../services/ads'
 
 export function Header() {
   const { locale, setLocale, os, setOs, theme, setTheme, query, setQuery, label, filtered } =
@@ -69,6 +70,15 @@ export function Header() {
           aria-label={theme === 'dark' ? label(ui.themeLight) : label(ui.themeDark)}
         >
           {theme === 'dark' ? '☀' : '☾'}
+        </button>
+        <button
+          className="ghost"
+          type="button"
+          onClick={() => void showPrivacyOptions()}
+          aria-label={label(ui.privacyOptions)}
+          title={label(ui.privacyOptions)}
+        >
+          🔒
         </button>
       </div>
     </header>
