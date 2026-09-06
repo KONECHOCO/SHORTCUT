@@ -11,7 +11,8 @@
     "mobile:sync": "npm run build && npx cap sync",
     "mobile:android": "npm run mobile:sync && npx cap open android",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
-    "capacitor:sync:after": "node node_modules/capacitor-levelplay-ads/scripts/levelplay-manifest.js"
+    "capacitor:sync:after": "node node_modules/capacitor-levelplay-ads/scripts/levelplay-manifest.js",
+    "screenshots:store": "node scripts/capture-appstore-screenshots.mjs && python scripts/flatten-store-pngs.py"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "playwright-core": "^1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   },
