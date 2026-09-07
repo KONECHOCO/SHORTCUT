@@ -74,6 +74,7 @@ workflows:
         PACKAGE_NAME: com.konechoco.shortcutatlas
         VITE_ADS_TEST_MODE: "false"
       node: latest
+      java: 21
     scripts:
       - name: Set up Android SDK path
         script: echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
