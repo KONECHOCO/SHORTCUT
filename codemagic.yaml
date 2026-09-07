@@ -69,6 +69,7 @@ workflows:
     environment:
       groups:
         - levelplay-android
+        - android-signing
       vars:
         PACKAGE_NAME: com.konechoco.shortcutatlas
         VITE_ADS_TEST_MODE: "false"
@@ -84,7 +85,15 @@ workflows:
         script: npx cap sync android
       - name: Build Android bundle
         script: |
+          if [ -n "$CM_KEYSTORE" ]; then
+            echo "$CM_KEYSTORE" | base64 --decode > "$CM_BUILD_DIR/android/keystore.jks"
+            export CM_KEYSTORE_PATH="$CM_BUILD_DIR/android/keystore.jks"
+            echo "Keystore pronto: $CM_KEYSTORE_PATH"
+          else
+            echo "CM_KEYSTORE non impostato — build unsigned"
+          fi
           cd android
+          chmod +x gradlew
           ./gradlew bundleRelease \
             -PversionCode="$BUILD_NUMBER" \
             -PversionName="1.0.$BUILD_NUMBER"
