@@ -106,5 +106,16 @@ function consentOptions() {
     privacyPolicyUrl,
     legalNoticeUrl,
     networks: ['unityads'],
+    // Overrides for the plugin's fallback alert (no `services` config is set,
+    // so the rich TCF modal is skipped). The default copy says "personalized
+    // advertising", which reads like an App Tracking Transparency prompt and
+    // got the app rejected under Guideline 5.1.2(i) — this app never calls
+    // ATT and never reads the IDFA, so the wording must not imply tracking.
+    title: 'Support this free app',
+    message:
+      'Shortcut Atlas is free and supported by ads served through our partner, Unity Ads. ' +
+      'No account or personal profile is required. See our Privacy Policy for details on how ad data is handled.',
+    acceptButtonText: 'Continue',
+    declineButtonText: 'Decline',
   }
 }
