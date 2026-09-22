@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext'
 import { ui } from '../i18n/ui'
 import type { ViewId } from '../types'
 import { AppGlyph } from './AppIcons'
+import { RemoveAdsButton } from '../monetization/RemoveAdsButton'
 
 const VIEWS: { id: ViewId; labelKey: 'browse' | 'favorites' | 'compare' | 'quiz' | 'formulas' | 'tips' }[] = [
   { id: 'browse', labelKey: 'browse' },
@@ -29,6 +30,7 @@ export function Sidebar() {
     appName,
     categoryName,
     favorites,
+    locale,
   } = useApp()
 
   const cats = uniqueCategories(shortcuts.filter((s) => s.appId === appId))
@@ -50,6 +52,7 @@ export function Sidebar() {
             {item.id === 'favorites' ? <span className="pill">{favorites.length}</span> : null}
           </button>
         ))}
+        <RemoveAdsButton locale={locale} />
       </nav>
 
       {(view === 'browse' || view === 'compare') && (

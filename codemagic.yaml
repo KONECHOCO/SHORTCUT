@@ -13,11 +13,12 @@ workflows:
         - levelplay-ios
       vars:
         BUNDLE_ID: com.konechoco.shortcutatlas
-        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         VITE_ADS_TEST_MODE: "false"
       node: latest
       xcode: latest
+      cocoapods: default
     cache:
       cache_paths:
         - $HOME/Library/Caches/CocoaPods
@@ -29,7 +30,9 @@ workflows:
         script: npm run build
       - name: Sync Capacitor iOS project
         script: npx cap sync ios
-      - name: Patch iOS LevelPlay Swift package
+      - name: Install CocoaPods dependencies
+        script: cd ios/App && pod install --repo-update
+      - name: Strip tracking usage description
         script: node scripts/patch-levelplay-ios-spm.mjs
       - name: Apply iOS signing profiles
         script: xcode-project use-profiles
@@ -46,7 +49,7 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR/ios/App"
           xcode-project build-ipa \
-            --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            --workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME" \
             --no-show-build-settings \
             --disable-xcpretty \
