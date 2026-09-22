@@ -7,8 +7,11 @@ workflows:
       app_store_connect: Ikonet Solutions
     environment:
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.konechoco.shortcutatlas
+        # Explicit refs: older profiles for this bundle point at revoked certificates.
+        provisioning_profiles:
+          - shortcut_appstore_20260922
+        certificates:
+          - ithelpdesk_distribution_20260916
       groups:
         - levelplay-ios
       vars:
