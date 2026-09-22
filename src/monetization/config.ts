@@ -7,10 +7,9 @@ export const monetizationConfig = {
   // Non-consumable "Remove ads" product. Must exist with this exact ID in
   // App Store Connect (In-App Purchases) and Google Play Console (One-time products).
   removeAdsProductId: 'com.konechoco.shortcutatlas.removeads',
-  // Must match `levelplay.networks` in package.json. Add 'admob' to both (plus
-  // `levelplay.admob.appId`) once the AdMob app exists — without the App ID
-  // the AdMob adapter crashes the app at launch.
-  adNetworks: ['unityads'],
+  // Must match `levelplay.networks` in package.json (AdMob App ID in
+  // `levelplay.admob.appId` — without it the AdMob adapter crashes at launch).
+  adNetworks: ['unityads', 'admob'],
   // This app never calls App Tracking Transparency (see PRIVACY.md) — keep false
   // unless the App Privacy answers in App Store Connect are changed too.
   requestTracking: false,

@@ -46,6 +46,15 @@ const interstitialAdUnitId = pick(
   env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID_ANDROID,
   env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID,
 )
+// Launch video: its own LevelPlay ad unit so AdMob can be left out of its
+// waterfall (AdMob disallows full-screen ads while an app is opening).
+// Falls back to the regular interstitial unit when not configured.
+const launchAdUnitId =
+  pick(
+    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID_IOS,
+    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID_ANDROID,
+    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID,
+  ) ?? interstitialAdUnitId
 const rewardedAdUnitId = pick(
   env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_IOS,
   env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_ANDROID,
@@ -75,7 +84,7 @@ export function bootstrapAds() {
 }
 
 export async function showInterstitialAfterNavigation() {
-  if (!interstitialAdUnitId || !(await bootstrapAds()) || isAdFree()) return
+  if (!interstitialAdUnitId || !(await bootstrapAds()) || isAdFree() || !launchDone) return
 
   viewsSinceInterstitial += 1
   if (viewsSinceInterstitial < INTERSTITIAL_EVERY_VIEWS) return
@@ -190,9 +199,16 @@ async function showLaunchAd() {
   const deadline = Date.now() + LAUNCH_AD_TIMEOUT_MS
   while (!interstitialReady && Date.now() < deadline) await wait(250)
 
-  if (interstitialReady && !isAdFree()) await showInterstitial()
-  // Banner after the launch video so the two don't load at the same time.
+  // From now on interstitials use the regular unit: showInterstitial() reloads
+  // it when the launch video closes; otherwise swap it in here.
   launchDone = true
+  if (interstitialReady && !isAdFree()) {
+    await showInterstitial()
+  } else if (launchAdUnitId !== interstitialAdUnitId) {
+    interstitialReady = false
+    await loadInterstitial()
+  }
+  // Banner after the launch video so the two don't load at the same time.
   if (!isAdFree()) await createBanner()
 }
 
@@ -230,10 +246,11 @@ async function createBanner() {
 }
 
 async function loadInterstitial() {
-  if (!interstitialAdUnitId || isAdFree()) return
+  const adUnitId = launchDone ? interstitialAdUnitId : launchAdUnitId
+  if (!adUnitId || isAdFree()) return
 
   try {
-    await LevelPlayAds.loadInterstitial({ adUnitId: interstitialAdUnitId, autoShow: false })
+    await LevelPlayAds.loadInterstitial({ adUnitId, autoShow: false })
   } catch (error) {
     console.warn('[ads] Caricamento interstitial fallito', error)
   }

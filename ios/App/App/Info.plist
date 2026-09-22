@@ -76,8 +76,14 @@
         <key>SKAdNetworkIdentifier</key>
         <string>4dzt52r2t5.skadnetwork</string>
       </dict>
+      <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>cstr6suwn9.skadnetwork</string>
+      </dict>
     </array>
     <key>LevelPlayCMPProvider</key>
     <string>custom</string>
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-1151868778464777~3686529299</string>
   </dict>
 </plist>

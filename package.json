@@ -36,10 +36,14 @@
   },
   "levelplay": {
     "networks": [
-      "unityads"
+      "unityads",
+      "admob"
     ],
     "consentProvider": "custom",
-    "userTrackingDescription": "Questo identificativo viene usato per mostrare annunci pertinenti e misurare le prestazioni pubblicitarie."
+    "userTrackingDescription": "Questo identificativo viene usato per mostrare annunci pertinenti e misurare le prestazioni pubblicitarie.",
+    "admob": {
+      "appId": "ca-app-pub-1151868778464777~3686529299"
+    }
   },
   "overrides": {
     "uuid": "^11.1.1"
