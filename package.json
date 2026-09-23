@@ -11,7 +11,8 @@
     "mobile:sync": "npm run build && npx cap sync",
     "mobile:android": "npm run mobile:sync && npx cap open android",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
-    "screenshots:store": "node scripts/capture-appstore-screenshots.mjs && python scripts/flatten-store-pngs.py"
+    "screenshots:store": "node scripts/capture-appstore-screenshots.mjs && python scripts/flatten-store-pngs.py",
+    "postinstall": "node scripts/patch-unity-ads.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.1.0",
