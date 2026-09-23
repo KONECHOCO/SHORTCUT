@@ -15,6 +15,11 @@ workflows:
       groups:
         - levelplay-ios
       vars:
+        # Ads (not secrets): Unity Ads Game ID + placements, AdMob banner unit.
+        VITE_UNITY_GAME_ID_IOS: "800368473"
+        VITE_UNITY_INTERSTITIAL_PLACEMENT_ID_IOS: "Inter_iOS"
+        VITE_UNITY_REWARDED_PLACEMENT_ID_IOS: "Reward_iOS"
+        VITE_ADMOB_BANNER_ID_IOS: "ca-app-pub-1151868778464777/5233213559"
         BUNDLE_ID: com.konechoco.shortcutatlas
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App

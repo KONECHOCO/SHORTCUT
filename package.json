@@ -11,15 +11,15 @@
     "mobile:sync": "npm run build && npx cap sync",
     "mobile:android": "npm run mobile:sync && npx cap open android",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
-    "capacitor:sync:after": "node node_modules/capacitor-levelplay-ads/scripts/levelplay-manifest.js",
     "screenshots:store": "node scripts/capture-appstore-screenshots.mjs && python scripts/flatten-store-pngs.py"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.1.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@capgo/native-purchases": "^8.8.1",
-    "capacitor-levelplay-ads": "^0.1.42",
+    "capacitor-unity-ads": "^1.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -34,18 +34,10 @@
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   },
-  "levelplay": {
-    "networks": [
-      "unityads",
-      "admob"
-    ],
-    "consentProvider": "custom",
-    "userTrackingDescription": "Questo identificativo viene usato per mostrare annunci pertinenti e misurare le prestazioni pubblicitarie.",
-    "admob": {
-      "appId": "ca-app-pub-1151868778464777~3686529299"
-    }
-  },
   "overrides": {
     "uuid": "^11.1.1"
+  },
+  "admob": {
+    "appId": "ca-app-pub-1151868778464777~3686529299"
   }
 }

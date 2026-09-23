@@ -1,5 +1,12 @@
 import { Capacitor } from '@capacitor/core'
-import { AdEvent, LevelPlayAds } from 'capacitor-levelplay-ads'
+import {
+  AdMob,
+  AdmobConsentStatus,
+  BannerAdPluginEvents,
+  BannerAdPosition,
+  BannerAdSize,
+} from '@capacitor-community/admob'
+import { UnityAds } from 'capacitor-unity-ads'
 import { monetizationConfig } from './config'
 import {
   grantTemporaryAdFree,
@@ -9,23 +16,25 @@ import {
   subscribePremium,
 } from './premium'
 
-// Unity LevelPlay mediation (AdMob and other networks are enabled from the
-// LevelPlay dashboard + `levelplay.networks` in package.json).
-//
-// Placements:
-//  - launch: full-screen video interstitial on every cold start
-//  - in-app: interstitial every INTERSTITIAL_EVERY_VIEWS screen changes
-//  - banner: adaptive, bottom, always on
-//  - rewarded (opt-in): watch a video → REWARDED_AD_FREE_MS without ads
+// Ads stack:
+//  - Unity Ads (direct SDK): full-screen video on every cold start, an
+//    interstitial every INTERSTITIAL_EVERY_VIEWS screen changes, and the opt-in
+//    rewarded video (→ REWARDED_AD_FREE_MS without ads).
+//  - AdMob: bottom banner only (non-personalized unless tracking is allowed).
+//    Keeping AdMob out of full-screen ads avoids its "ads on app open" policy.
 // Nothing is shown while the user is ad-free (purchase or rewarded window).
+//
+// Env (Codemagic): VITE_UNITY_GAME_ID[_IOS|_ANDROID], VITE_UNITY_*_PLACEMENT_ID,
+// VITE_ADMOB_BANNER_ID[_IOS|_ANDROID]. The older VITE_LEVELPLAY_* variables are
+// still read: they hold the Unity Game ID and placement IDs for these apps.
 
 export type AdPlacement = string
 
 const INTERSTITIAL_EVERY_VIEWS = 3
-// Minimum gap between two full-screen ads. Faster pacing is what AdMob and
-// Unity flag as invalid traffic / bad ad experience, so keep it.
+// Minimum gap between two full-screen ads. Faster pacing is what ad networks
+// flag as invalid traffic / bad ad experience, so keep it.
 const MIN_INTERSTITIAL_GAP_MS = 60_000
-// If the launch video isn't loaded by then, skip it rather than interrupting
+// If the launch video isn't ready by then, skip it rather than interrupting
 // the user once they've started reading.
 const LAUNCH_AD_TIMEOUT_MS = 8_000
 export const REWARDED_AD_FREE_MS = 30 * 60_000
@@ -34,47 +43,49 @@ const platform = Capacitor.getPlatform()
 const env = import.meta.env
 const pick = (ios?: string, android?: string, shared?: string) =>
   ((platform === 'ios' ? ios : android) || shared)?.trim() || undefined
+const suffix = platform === 'ios' ? 'iOS' : 'Android'
 
-const appKey = pick(env.VITE_LEVELPLAY_APP_KEY_IOS, env.VITE_LEVELPLAY_APP_KEY_ANDROID, env.VITE_LEVELPLAY_APP_KEY)
-const bannerAdUnitId = pick(
-  env.VITE_LEVELPLAY_BANNER_AD_UNIT_ID_IOS,
-  env.VITE_LEVELPLAY_BANNER_AD_UNIT_ID_ANDROID,
-  env.VITE_LEVELPLAY_BANNER_AD_UNIT_ID,
-)
-const interstitialAdUnitId = pick(
-  env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID_IOS,
-  env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID_ANDROID,
-  env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID,
-)
-// Launch video: its own LevelPlay ad unit so AdMob can be left out of its
-// waterfall (AdMob disallows full-screen ads while an app is opening).
-// Falls back to the regular interstitial unit when not configured.
-const launchAdUnitId =
+const legacyAppKey = pick(env.VITE_LEVELPLAY_APP_KEY_IOS, env.VITE_LEVELPLAY_APP_KEY_ANDROID, env.VITE_LEVELPLAY_APP_KEY)
+const gameId =
+  pick(env.VITE_UNITY_GAME_ID_IOS, env.VITE_UNITY_GAME_ID_ANDROID, env.VITE_UNITY_GAME_ID) ??
+  // Unity Game IDs are numeric; a real LevelPlay app key is not.
+  (legacyAppKey && /^\d+$/.test(legacyAppKey) ? legacyAppKey : undefined)
+const interstitialPlacementId =
   pick(
-    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID_IOS,
-    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID_ANDROID,
-    env.VITE_LEVELPLAY_LAUNCH_AD_UNIT_ID,
-  ) ?? interstitialAdUnitId
-const rewardedAdUnitId = pick(
-  env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_IOS,
-  env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_ANDROID,
-  env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID,
-)
-const privacyPolicyUrl = env.VITE_PRIVACY_POLICY_URL?.trim()
-const legalNoticeUrl = env.VITE_LEGAL_NOTICE_URL?.trim()
+    env.VITE_UNITY_INTERSTITIAL_PLACEMENT_ID_IOS,
+    env.VITE_UNITY_INTERSTITIAL_PLACEMENT_ID_ANDROID,
+    env.VITE_UNITY_INTERSTITIAL_PLACEMENT_ID,
+  ) ??
+  pick(
+    env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID_IOS,
+    env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID_ANDROID,
+    env.VITE_LEVELPLAY_INTERSTITIAL_AD_UNIT_ID,
+  ) ??
+  `Interstitial_${suffix}`
+const rewardedPlacementId =
+  pick(
+    env.VITE_UNITY_REWARDED_PLACEMENT_ID_IOS,
+    env.VITE_UNITY_REWARDED_PLACEMENT_ID_ANDROID,
+    env.VITE_UNITY_REWARDED_PLACEMENT_ID,
+  ) ??
+  pick(
+    env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_IOS,
+    env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID_ANDROID,
+    env.VITE_LEVELPLAY_REWARDED_AD_UNIT_ID,
+  )
+const bannerAdId = pick(env.VITE_ADMOB_BANNER_ID_IOS, env.VITE_ADMOB_BANNER_ID_ANDROID, env.VITE_ADMOB_BANNER_ID)
 const isTesting = env.VITE_ADS_TEST_MODE !== 'false'
 
 let bootPromise: Promise<boolean> | undefined
-let interstitialReady = false
+let admobReady = false
 let interstitialShowing = false
-let rewardedReady = false
 let lastInterstitialAt = 0
 let viewsSinceInterstitial = 0
-let bannerCreated = false
+let bannerShown = false
 let launchDone = false
 
-export const adsEnabled = Capacitor.isNativePlatform() && Boolean(appKey)
-export const rewardedEnabled = adsEnabled && Boolean(rewardedAdUnitId)
+export const adsEnabled = Capacitor.isNativePlatform() && Boolean(gameId || bannerAdId)
+export const rewardedEnabled = Capacitor.isNativePlatform() && Boolean(gameId && rewardedPlacementId)
 
 export function bootstrapAds() {
   if (!adsEnabled) return Promise.resolve(false)
@@ -84,36 +95,37 @@ export function bootstrapAds() {
 }
 
 export async function showInterstitialAfterNavigation() {
-  if (!interstitialAdUnitId || !(await bootstrapAds()) || isAdFree() || !launchDone) return
+  if (!gameId || !(await bootstrapAds()) || isAdFree() || !launchDone) return
 
   viewsSinceInterstitial += 1
   if (viewsSinceInterstitial < INTERSTITIAL_EVERY_VIEWS) return
   if (Date.now() - lastInterstitialAt < MIN_INTERSTITIAL_GAP_MS) return
-  if (!interstitialReady) return
 
   viewsSinceInterstitial = 0
   await showInterstitial()
 }
 
 /**
- * Opt-in rewarded video. Resolves true once the video is shown; the ad-free
- * window is granted only when the SDK reports the reward (user watched it).
+ * Opt-in rewarded video. Resolves true once the user watched it to the end;
+ * that grants the temporary ad-free window.
  */
 export async function showRewardedForAdFree() {
-  if (!rewardedAdUnitId || !(await bootstrapAds())) return false
-  if (!rewardedReady) {
-    void loadRewarded()
-    return false
-  }
+  if (!rewardedPlacementId || !gameId || !(await bootstrapAds())) return false
 
   try {
-    rewardedReady = false
-    await LevelPlayAds.showRewarded()
-    return true
+    const { loaded } = await UnityAds.isRewardedVideoLoaded()
+    if (!loaded) {
+      void loadRewarded()
+      return false
+    }
+    const { success } = await UnityAds.showRewardedVideo()
+    if (success) grantTemporaryAdFree(REWARDED_AD_FREE_MS)
+    return success
   } catch (error) {
     console.warn('[ads] Rewarded non mostrato', error)
-    void loadRewarded()
     return false
+  } finally {
+    void loadRewarded()
   }
 }
 
@@ -128,86 +140,79 @@ export async function hideBannerAd(_placement?: AdPlacement) {
 }
 
 export async function showPrivacyOptions() {
-  if (!(await bootstrapAds())) return
+  if (!(await bootstrapAds()) || !admobReady) return
 
-  await LevelPlayAds.showPrivacyOptions(consentOptions())
+  try {
+    await AdMob.showPrivacyOptionsForm()
+  } catch (error) {
+    console.warn('[ads] Opzioni privacy non disponibili', error)
+  }
 }
 
 async function initializeAds() {
-  // Paying users: never touch the ad SDK at all.
+  // Paying users: never touch the ad SDKs at all.
   if (isPurchased() || (await refreshEntitlementQuickly())) return false
 
+  await Promise.allSettled([initializeAdMob(), initializeUnity()])
+
+  subscribePremium(() => {
+    if (isAdFree()) void removeBanner()
+    else void restoreAds()
+  })
+
+  void showLaunchAd()
+  return true
+}
+
+async function initializeAdMob() {
+  if (!bannerAdId) return
   try {
-    await LevelPlayAds.requestConsentInfo(consentOptions())
-    await LevelPlayAds.initialize({ appKey: appKey as string, isTesting })
-    if (monetizationConfig.requestTracking) await LevelPlayAds.requestTrackingAuthorization()
+    await AdMob.initialize({ initializeForTesting: isTesting })
+    // Google-certified consent (UMP) for EEA/UK users.
+    const consent = await AdMob.requestConsentInfo()
+    if (consent.isConsentFormAvailable && consent.status === AdmobConsentStatus.REQUIRED) {
+      await AdMob.showConsentForm()
+    }
+    await AdMob.addListener(BannerAdPluginEvents.SizeChanged, (size) => {
+      // Keep page content above the native banner.
+      document.body.style.paddingBottom = `${size.height}px`
+    })
+    admobReady = true
+  } catch (error) {
+    console.warn('[ads] Inizializzazione AdMob fallita', error)
+  }
+}
 
-    await LevelPlayAds.addListener(AdEvent.InterstitialLoaded, () => {
-      interstitialReady = true
-    })
-    await LevelPlayAds.addListener(AdEvent.InterstitialClosed, () => {
-      interstitialReady = false
-      void loadInterstitial()
-    })
-    await LevelPlayAds.addListener(AdEvent.InterstitialLoadFailed, (error) => {
-      interstitialReady = false
-      console.warn('[ads] Caricamento interstitial fallito', error)
-    })
-    await LevelPlayAds.addListener(AdEvent.RewardedLoaded, () => {
-      rewardedReady = true
-    })
-    await LevelPlayAds.addListener(AdEvent.RewardedLoadFailed, () => {
-      rewardedReady = false
-    })
-    await LevelPlayAds.addListener(AdEvent.RewardedRewarded, () => {
-      grantTemporaryAdFree(REWARDED_AD_FREE_MS)
-    })
-    await LevelPlayAds.addListener(AdEvent.RewardedClosed, () => {
-      rewardedReady = false
-      void loadRewarded()
-    })
-    await LevelPlayAds.addListener(AdEvent.AdRevenue, (event) => {
-      console.info('[ads] Revenue impression', event)
-    })
-
-    subscribePremium(() => {
-      if (isAdFree()) void removeAllAds()
-      else void restoreAds()
-    })
-
+async function initializeUnity() {
+  if (!gameId) return
+  try {
+    await UnityAds.initialize({ gameId, testMode: isTesting })
     await loadInterstitial()
     void loadRewarded()
-    void showLaunchAd()
-    return true
   } catch (error) {
-    console.warn('[ads] Inizializzazione LevelPlay fallita', error)
-    return false
+    console.warn('[ads] Inizializzazione Unity Ads fallita', error)
   }
 }
 
 // The store answer usually arrives in well under a second; don't hold the
-// ad SDK hostage if it doesn't.
+// ad SDKs hostage if it doesn't.
 function refreshEntitlementQuickly() {
   return Promise.race([refreshEntitlement(), wait(1_500).then(() => false)])
 }
 
 async function showLaunchAd() {
-  if (isAdFree()) {
-    launchDone = true
-    return
+  if (gameId && !isAdFree()) {
+    const deadline = Date.now() + LAUNCH_AD_TIMEOUT_MS
+    let ready = false
+    while (!ready && Date.now() < deadline) {
+      ready = await UnityAds.isInterstitialLoaded()
+        .then((r) => r.loaded)
+        .catch(() => false)
+      if (!ready) await wait(250)
+    }
+    if (ready && !isAdFree()) await showInterstitial()
   }
-  const deadline = Date.now() + LAUNCH_AD_TIMEOUT_MS
-  while (!interstitialReady && Date.now() < deadline) await wait(250)
-
-  // From now on interstitials use the regular unit: showInterstitial() reloads
-  // it when the launch video closes; otherwise swap it in here.
   launchDone = true
-  if (interstitialReady && !isAdFree()) {
-    await showInterstitial()
-  } else if (launchAdUnitId !== interstitialAdUnitId) {
-    interstitialReady = false
-    await loadInterstitial()
-  }
   // Banner after the launch video so the two don't load at the same time.
   if (!isAdFree()) await createBanner()
 }
@@ -216,61 +221,62 @@ async function showInterstitial() {
   if (interstitialShowing) return
   interstitialShowing = true
   try {
-    await LevelPlayAds.showInterstitial()
+    const { loaded } = await UnityAds.isInterstitialLoaded()
+    if (!loaded) return
+    await UnityAds.showInterstitial()
     lastInterstitialAt = Date.now()
   } catch (error) {
     console.warn('[ads] Interstitial non mostrato', error)
   } finally {
     interstitialShowing = false
-    interstitialReady = false
     void loadInterstitial()
   }
 }
 
 async function createBanner() {
-  if (!bannerAdUnitId || bannerCreated) return
-  bannerCreated = true
+  if (!bannerAdId || !admobReady || bannerShown) return
+  bannerShown = true
 
   try {
-    await LevelPlayAds.createBanner({
-      adUnitId: bannerAdUnitId,
-      adSize: 'ADAPTIVE',
-      position: 'BOTTOM',
-      isAutoShow: true,
-      isOverlap: false,
+    await AdMob.showBanner({
+      adId: bannerAdId,
+      adSize: BannerAdSize.ADAPTIVE_BANNER,
+      position: BannerAdPosition.BOTTOM_CENTER,
+      margin: 0,
+      isTesting,
+      // Non-personalized ads unless the app asks for tracking permission.
+      npa: !monetizationConfig.requestTracking,
     })
   } catch (error) {
-    bannerCreated = false
-    console.warn('[ads] Banner non creato', error)
+    bannerShown = false
+    console.warn('[ads] Banner non mostrato', error)
   }
 }
 
 async function loadInterstitial() {
-  const adUnitId = launchDone ? interstitialAdUnitId : launchAdUnitId
-  if (!adUnitId || isAdFree()) return
-
+  if (!gameId || isAdFree()) return
   try {
-    await LevelPlayAds.loadInterstitial({ adUnitId, autoShow: false })
+    await UnityAds.loadInterstitial({ placementId: interstitialPlacementId })
   } catch (error) {
     console.warn('[ads] Caricamento interstitial fallito', error)
   }
 }
 
 async function loadRewarded() {
-  if (!rewardedAdUnitId || isPurchased()) return
-
+  if (!gameId || !rewardedPlacementId || isPurchased()) return
   try {
-    await LevelPlayAds.loadRewarded({ adUnitId: rewardedAdUnitId })
+    await UnityAds.loadRewardedVideo({ placementId: rewardedPlacementId })
   } catch (error) {
     console.warn('[ads] Caricamento rewarded fallito', error)
   }
 }
 
-async function removeAllAds() {
-  if (!bannerCreated) return
-  bannerCreated = false
+async function removeBanner() {
+  if (!bannerShown) return
+  bannerShown = false
+  document.body.style.paddingBottom = ''
   try {
-    await LevelPlayAds.destroyBanner()
+    await AdMob.removeBanner()
   } catch (error) {
     console.warn('[ads] Banner non rimosso', error)
   }
@@ -280,18 +286,7 @@ async function removeAllAds() {
 async function restoreAds() {
   if (!launchDone) return
   await createBanner()
-  if (!interstitialReady) await loadInterstitial()
-}
-
-function consentOptions() {
-  return {
-    appName: monetizationConfig.appName,
-    accentColor: monetizationConfig.accentColor,
-    privacyPolicyUrl,
-    legalNoticeUrl,
-    networks: monetizationConfig.adNetworks,
-    ...monetizationConfig.consentCopy,
-  }
+  await loadInterstitial()
 }
 
 function wait(ms: number) {
