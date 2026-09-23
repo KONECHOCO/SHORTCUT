@@ -37,6 +37,8 @@ const MIN_INTERSTITIAL_GAP_MS = 60_000
 // If the launch video isn't ready by then, skip it rather than interrupting
 // the user once they've started reading.
 const LAUNCH_AD_TIMEOUT_MS = 8_000
+// A stuck SDK must never hold back the banner or the rest of the app.
+const SDK_INIT_TIMEOUT_MS = 10_000
 export const REWARDED_AD_FREE_MS = 30 * 60_000
 
 const platform = Capacitor.getPlatform()
@@ -84,6 +86,23 @@ let viewsSinceInterstitial = 0
 let bannerShown = false
 let launchDone = false
 let personalizedAllowed = false
+const diagnostics: string[] = []
+
+/** Short ad-stack log, shown by the hidden panel in RemoveAdsButton (TestFlight debugging). */
+export function getAdsDiagnostics() {
+  return [
+    `gameId=${gameId ?? '-'} inter=${interstitialPlacementId} reward=${rewardedPlacementId ?? '-'}`,
+    `banner=${bannerAdId ?? '-'} test=${isTesting} adFree=${isAdFree()} purchased=${isPurchased()}`,
+    ...diagnostics,
+  ].join('\n')
+}
+
+function note(message: string, error?: unknown) {
+  const detail = error === undefined ? '' : `: ${String((error as Error)?.message ?? error)}`
+  diagnostics.push(`${new Date().toLocaleTimeString()} ${message}${detail}`)
+  if (diagnostics.length > 30) diagnostics.shift()
+  if (error !== undefined) console.warn('[ads]', message, error)
+}
 
 export const adsEnabled = Capacitor.isNativePlatform() && Boolean(gameId || bannerAdId)
 export const rewardedEnabled = Capacitor.isNativePlatform() && Boolean(gameId && rewardedPlacementId)
@@ -116,6 +135,7 @@ export async function showRewardedForAdFree() {
   try {
     const { loaded } = await UnityAds.isRewardedVideoLoaded()
     if (!loaded) {
+      note('rewarded not loaded on tap')
       void loadRewarded()
       return false
     }
@@ -123,7 +143,7 @@ export async function showRewardedForAdFree() {
     if (success) grantTemporaryAdFree(REWARDED_AD_FREE_MS)
     return success
   } catch (error) {
-    console.warn('[ads] Rewarded non mostrato', error)
+    note('rewarded show failed', error)
     return false
   } finally {
     void loadRewarded()
@@ -152,7 +172,10 @@ export async function showPrivacyOptions() {
 
 async function initializeAds() {
   // Paying users: never touch the ad SDKs at all.
-  if (isPurchased() || (await refreshEntitlementQuickly())) return false
+  if (isPurchased() || (await refreshEntitlementQuickly())) {
+    note('purchased: ads off')
+    return false
+  }
 
   // AdMob first: consent form and ATT prompt must come before Unity starts.
   await initializeAdMob()
@@ -169,12 +192,18 @@ async function initializeAds() {
 
 async function initializeAdMob() {
   if (!bannerAdId) return
+  // Google-certified consent (UMP) for EEA/UK users. A consent error (e.g. no
+  // message configured in AdMob) must not stop the banner.
   try {
-    // Google-certified consent (UMP) for EEA/UK users.
     const consent = await AdMob.requestConsentInfo()
+    note(`consent ${consent.status}`)
     if (consent.isConsentFormAvailable && consent.status === AdmobConsentStatus.REQUIRED) {
       await AdMob.showConsentForm()
     }
+  } catch (error) {
+    note('consent failed', error)
+  }
+  try {
     // App Tracking Transparency only for apps whose App Privacy declares tracking.
     if (monetizationConfig.requestTracking && platform === 'ios') {
       await AdMob.requestTrackingAuthorization().catch(() => undefined)
@@ -182,24 +211,28 @@ async function initializeAdMob() {
       personalizedAllowed = status === 'authorized'
     }
     await AdMob.initialize({ initializeForTesting: isTesting })
+    await AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (error) => note('banner no fill', error?.message ?? error?.code))
+    await AdMob.addListener(BannerAdPluginEvents.Loaded, () => note('banner loaded'))
     await AdMob.addListener(BannerAdPluginEvents.SizeChanged, (size) => {
       // Keep page content above the native banner.
       document.body.style.paddingBottom = `${size.height}px`
     })
     admobReady = true
+    note('admob ready')
   } catch (error) {
-    console.warn('[ads] Inizializzazione AdMob fallita', error)
+    note('admob init failed', error)
   }
 }
 
 async function initializeUnity() {
   if (!gameId) return
   try {
-    await UnityAds.initialize({ gameId, testMode: isTesting })
-    await loadInterstitial()
+    await withTimeout(UnityAds.initialize({ gameId, testMode: isTesting }), SDK_INIT_TIMEOUT_MS)
+    note('unity ready')
+    void loadInterstitial()
     void loadRewarded()
   } catch (error) {
-    console.warn('[ads] Inizializzazione Unity Ads fallita', error)
+    note('unity init failed', error)
   }
 }
 
@@ -220,6 +253,7 @@ async function showLaunchAd() {
       if (!ready) await wait(250)
     }
     if (ready && !isAdFree()) await showInterstitial()
+    else if (!ready) note('launch video not ready in time')
   }
   launchDone = true
   // Banner after the launch video so the two don't load at the same time.
@@ -234,8 +268,9 @@ async function showInterstitial() {
     if (!loaded) return
     await UnityAds.showInterstitial()
     lastInterstitialAt = Date.now()
+    note('interstitial shown')
   } catch (error) {
-    console.warn('[ads] Interstitial non mostrato', error)
+    note('interstitial show failed', error)
   } finally {
     interstitialShowing = false
     void loadInterstitial()
@@ -256,9 +291,10 @@ async function createBanner() {
       // Non-personalized unless the user allowed tracking (apps with requestTracking).
       npa: !personalizedAllowed,
     })
+    note('banner requested')
   } catch (error) {
     bannerShown = false
-    console.warn('[ads] Banner non mostrato', error)
+    note('banner failed', error)
   }
 }
 
@@ -266,8 +302,9 @@ async function loadInterstitial() {
   if (!gameId || isAdFree()) return
   try {
     await UnityAds.loadInterstitial({ placementId: interstitialPlacementId })
+    note('interstitial loaded')
   } catch (error) {
-    console.warn('[ads] Caricamento interstitial fallito', error)
+    note('interstitial load failed', error)
   }
 }
 
@@ -275,8 +312,9 @@ async function loadRewarded() {
   if (!gameId || !rewardedPlacementId || isPurchased()) return
   try {
     await UnityAds.loadRewardedVideo({ placementId: rewardedPlacementId })
+    note('rewarded loaded')
   } catch (error) {
-    console.warn('[ads] Caricamento rewarded fallito', error)
+    note('rewarded load failed', error)
   }
 }
 
@@ -296,6 +334,15 @@ async function restoreAds() {
   if (!launchDone) return
   await createBanner()
   await loadInterstitial()
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    wait(ms).then(() => {
+      throw new Error(`timeout after ${ms} ms`)
+    }),
+  ])
 }
 
 function wait(ms: number) {

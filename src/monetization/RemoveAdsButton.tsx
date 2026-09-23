@@ -1,5 +1,5 @@
-import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react'
-import { rewardedEnabled, showRewardedForAdFree } from './ads'
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { getAdsDiagnostics, rewardedEnabled, showRewardedForAdFree } from './ads'
 import { monetizationConfig } from './config'
 import {
   getAdFreeUntil,
@@ -92,6 +92,14 @@ export function RemoveAdsButton({ locale, compact = false }: { locale?: string; 
   const price = useSyncExternalStore(subscribePremium, getRemoveAdsPrice)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string>()
+  // Long-press (2 s) on "Restore purchases" shows the ad-stack log: the only
+  // way to see why ads don't show on a TestFlight build without Xcode.
+  const [diagnostics, setDiagnostics] = useState<string>()
+  const pressTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const startPress = () => {
+    pressTimer.current = setTimeout(() => setDiagnostics((d) => (d ? undefined : getAdsDiagnostics())), 2_000)
+  }
+  const endPress = () => clearTimeout(pressTimer.current)
   const { lang, t } = strings(locale)
 
   useEffect(() => {
@@ -154,10 +162,15 @@ export function RemoveAdsButton({ locale, compact = false }: { locale?: string; 
         disabled={busy}
         style={styles.restore}
         onClick={() => run(restoreRemoveAds, t.notFound)}
+        onPointerDown={startPress}
+        onPointerUp={endPress}
+        onPointerLeave={endPress}
+        onContextMenu={(event) => event.preventDefault()}
       >
         {t.restore}
       </button>
       {message ? <p style={styles.note}>{message}</p> : null}
+      {diagnostics ? <pre style={styles.diagnostics}>{diagnostics}</pre> : null}
     </div>
   )
 }
@@ -200,4 +213,15 @@ const styles: Record<string, CSSProperties> = {
     opacity: 0.75,
   },
   note: { fontSize: '0.85em', opacity: 0.8, textAlign: 'center', margin: 0 },
+  diagnostics: {
+    fontSize: 11,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all',
+    textAlign: 'left',
+    margin: 0,
+    padding: 8,
+    borderRadius: 8,
+    background: 'rgba(127,127,127,0.15)',
+    userSelect: 'text',
+  },
 }
