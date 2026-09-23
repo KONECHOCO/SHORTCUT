@@ -83,6 +83,7 @@ let lastInterstitialAt = 0
 let viewsSinceInterstitial = 0
 let bannerShown = false
 let launchDone = false
+let personalizedAllowed = false
 
 export const adsEnabled = Capacitor.isNativePlatform() && Boolean(gameId || bannerAdId)
 export const rewardedEnabled = Capacitor.isNativePlatform() && Boolean(gameId && rewardedPlacementId)
@@ -153,7 +154,9 @@ async function initializeAds() {
   // Paying users: never touch the ad SDKs at all.
   if (isPurchased() || (await refreshEntitlementQuickly())) return false
 
-  await Promise.allSettled([initializeAdMob(), initializeUnity()])
+  // AdMob first: consent form and ATT prompt must come before Unity starts.
+  await initializeAdMob()
+  await initializeUnity()
 
   subscribePremium(() => {
     if (isAdFree()) void removeBanner()
@@ -167,12 +170,18 @@ async function initializeAds() {
 async function initializeAdMob() {
   if (!bannerAdId) return
   try {
-    await AdMob.initialize({ initializeForTesting: isTesting })
     // Google-certified consent (UMP) for EEA/UK users.
     const consent = await AdMob.requestConsentInfo()
     if (consent.isConsentFormAvailable && consent.status === AdmobConsentStatus.REQUIRED) {
       await AdMob.showConsentForm()
     }
+    // App Tracking Transparency only for apps whose App Privacy declares tracking.
+    if (monetizationConfig.requestTracking && platform === 'ios') {
+      await AdMob.requestTrackingAuthorization().catch(() => undefined)
+      const { status } = await AdMob.trackingAuthorizationStatus().catch(() => ({ status: 'denied' as const }))
+      personalizedAllowed = status === 'authorized'
+    }
+    await AdMob.initialize({ initializeForTesting: isTesting })
     await AdMob.addListener(BannerAdPluginEvents.SizeChanged, (size) => {
       // Keep page content above the native banner.
       document.body.style.paddingBottom = `${size.height}px`
@@ -244,8 +253,8 @@ async function createBanner() {
       position: BannerAdPosition.BOTTOM_CENTER,
       margin: 0,
       isTesting,
-      // Non-personalized ads unless the app asks for tracking permission.
-      npa: !monetizationConfig.requestTracking,
+      // Non-personalized unless the user allowed tracking (apps with requestTracking).
+      npa: !personalizedAllowed,
     })
   } catch (error) {
     bannerShown = false
